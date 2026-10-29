@@ -1,0 +1,76 @@
+Test Suite 'All tests' started at 2026-10-29 22:00:08.778
+Test Suite 'debug.xctest' started at 2026-10-29 22:00:08.781
+Test Suite 'BrowserServiceTests' started at 2026-10-29 22:00:08.781
+Test Case 'BrowserServiceTests.testActualBrowserClientStagingAndExport' started at 2026-10-29 22:00:08.781
+Test Case 'BrowserServiceTests.testActualBrowserClientStagingAndExport' passed (0.097 seconds)
+Test Case 'BrowserServiceTests.testBrowserRecursiveImportExportMoveAndDelete' started at 2026-10-29 22:00:08.878
+Test Case 'BrowserServiceTests.testBrowserRecursiveImportExportMoveAndDelete' passed (0.066 seconds)
+Test Case 'BrowserServiceTests.testExportRefusesExistingTargetsAndDoesNotLeavePartialBatches' started at 2026-10-29 22:00:08.944
+Test Case 'BrowserServiceTests.testExportRefusesExistingTargetsAndDoesNotLeavePartialBatches' passed (0.003 seconds)
+Test Case 'BrowserServiceTests.testImportConflictRequiresReplaceAndIsAtomic' started at 2026-10-29 22:00:08.947
+Test Case 'BrowserServiceTests.testImportConflictRequiresReplaceAndIsAtomic' passed (0.082 seconds)
+Test Case 'BrowserServiceTests.testProbeFindsMemoryUnitSectorSize' started at 2026-10-29 22:00:09.029
+Test Case 'BrowserServiceTests.testProbeFindsMemoryUnitSectorSize' passed (0.001 seconds)
+Test Case 'BrowserServiceTests.testRecursiveDeleteReadOnlyEntryRollsBack' started at 2026-10-29 22:00:09.030
+Test Case 'BrowserServiceTests.testRecursiveDeleteReadOnlyEntryRollsBack' passed (0.145 seconds)
+Test Case 'BrowserServiceTests.testRecursiveImportFailureRollsBackAllFoldersAndFiles' started at 2026-10-29 22:00:09.175
+Test Case 'BrowserServiceTests.testRecursiveImportFailureRollsBackAllFoldersAndFiles' passed (0.07 seconds)
+Test Case 'BrowserServiceTests.testSymlinkAndInvalidNamesFailBeforeMutation' started at 2026-10-29 22:00:09.245
+Test Case 'BrowserServiceTests.testSymlinkAndInvalidNamesFailBeforeMutation' passed (0.017 seconds)
+Test Suite 'BrowserServiceTests' passed at 2026-10-29 22:00:09.262
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.48 (0.48) seconds
+Test Suite 'DeviceSessionTests' started at 2026-10-29 22:00:09.262
+Test Case 'DeviceSessionTests.testClientReusesOneLaunchAcrossRepeatedRequestsAndExplicitShutdown' started at 2026-10-29 22:00:09.262
+Test Case 'DeviceSessionTests.testClientReusesOneLaunchAcrossRepeatedRequestsAndExplicitShutdown' passed (1.12 seconds)
+Test Case 'DeviceSessionTests.testClientStartupFailureDoesNotSilentlyRelaunchOrAuthorize' started at 2026-10-29 22:00:10.382
+Test Case 'DeviceSessionTests.testClientStartupFailureDoesNotSilentlyRelaunchOrAuthorize' passed (0.052 seconds)
+Test Case 'DeviceSessionTests.testHelperExitsWhenParentExits' started at 2026-10-29 22:00:10.435
+Test Case 'DeviceSessionTests.testHelperExitsWhenParentExits' passed (1.027 seconds)
+Test Case 'DeviceSessionTests.testLiveSessionRejectsInvalidTokenThenContinuesAndShutsDown' started at 2026-10-29 22:00:11.462
+Test Case 'DeviceSessionTests.testLiveSessionRejectsInvalidTokenThenContinuesAndShutsDown' passed (0.63 seconds)
+Test Case 'DeviceSessionTests.testPrivilegedPolicyRejectsHostFilesAndUnstagedTransferPaths' started at 2026-10-29 22:00:12.092
+Test Case 'DeviceSessionTests.testPrivilegedPolicyRejectsHostFilesAndUnstagedTransferPaths' passed (0.005 seconds)
+Test Case 'DeviceSessionTests.testRootHelperPublishesMessagesWithInvokingUsersOwnership' started at 2026-10-29 22:00:12.097
+FATXSwift/Tests/FATXServiceTests/DeviceSessionTests.swift:101: DeviceSessionTests.testRootHelperPublishesMessagesWithInvokingUsersOwnership : Test skipped - This Linux test environment maps only UID 0; a second UID is unavailable
+Test Case 'DeviceSessionTests.testRootHelperPublishesMessagesWithInvokingUsersOwnership' skipped (0.001 seconds)
+Test Case 'DeviceSessionTests.testSessionPinsPrivateFolderAndRejectsUnsafeMessages' started at 2026-10-29 22:00:12.098
+Test Case 'DeviceSessionTests.testSessionPinsPrivateFolderAndRejectsUnsafeMessages' passed (0.041 seconds)
+Test Suite 'DeviceSessionTests' passed at 2026-10-29 22:00:12.139
+	 Executed 7 tests, with 1 test skipped and 0 failures (0 unexpected) in 2.877 (2.877) seconds
+Test Suite 'FATXTests' started at 2026-10-29 22:00:12.139
+Test Case 'FATXTests.testCRC32KnownVectorAndCorruptJournalRejectedWithoutWrites' started at 2026-10-29 22:00:12.139
+Test Case 'FATXTests.testCRC32KnownVectorAndCorruptJournalRejectedWithoutWrites' passed (0.019 seconds)
+Test Case 'FATXTests.testCorruptionRejectedBeforeJournalOrWrite' started at 2026-10-29 22:00:12.159
+Test Case 'FATXTests.testCorruptionRejectedBeforeJournalOrWrite' passed (0.007 seconds)
+Test Case 'FATXTests.testCrashRecoveryAndTornTail' started at 2026-10-29 22:00:12.166
+Test Case 'FATXTests.testCrashRecoveryAndTornTail' passed (0.017 seconds)
+Test Case 'FATXTests.testDirectoryGrowthDeletedSlotsAndEndMarkers' started at 2026-10-29 22:00:12.183
+Test Case 'FATXTests.testDirectoryGrowthDeletedSlotsAndEndMarkers' passed (0.269 seconds)
+Test Case 'FATXTests.testEachInjectedWriteFailureRollsBackExactly' started at 2026-10-29 22:00:12.453
+Test Case 'FATXTests.testEachInjectedWriteFailureRollsBackExactly' passed (0.344 seconds)
+Test Case 'FATXTests.testJournalReuseAndCommittedReplayRefused' started at 2026-10-29 22:00:12.797
+Test Case 'FATXTests.testJournalReuseAndCommittedReplayRefused' passed (0.013 seconds)
+Test Case 'FATXTests.testMutationValidationAndOutOfSpaceAreAtomic' started at 2026-10-29 22:00:12.810
+Test Case 'FATXTests.testMutationValidationAndOutOfSpaceAreAtomic' passed (0.066 seconds)
+Test Case 'FATXTests.testNamedPartitionsAndScanUseFilesystemNames' started at 2026-10-29 22:00:12.876
+Test Case 'FATXTests.testNamedPartitionsAndScanUseFilesystemNames' passed (0.001 seconds)
+Test Case 'FATXTests.testPartitionBoundsAnd4096ByteSectors' started at 2026-10-29 22:00:12.877
+Test Case 'FATXTests.testPartitionBoundsAnd4096ByteSectors' passed (0.011 seconds)
+Test Case 'FATXTests.testPendingOperationBlocksNewWritesUntilRecovery' started at 2026-10-29 22:00:12.888
+Test Case 'FATXTests.testPendingOperationBlocksNewWritesUntilRecovery' passed (0.028 seconds)
+Test Case 'FATXTests.testReadAllByteOrdersAndWidths' started at 2026-10-29 22:00:12.915
+Test Case 'FATXTests.testReadAllByteOrdersAndWidths' passed (0.202 seconds)
+Test Case 'FATXTests.testReadOnlyAndInvalidHeaders' started at 2026-10-29 22:00:13.117
+Test Case 'FATXTests.testReadOnlyAndInvalidHeaders' passed (0.001 seconds)
+Test Case 'FATXTests.testTimestampsUseFullHourMinuteFieldsAndDifferentEpochs' started at 2026-10-29 22:00:13.118
+Test Case 'FATXTests.testTimestampsUseFullHourMinuteFieldsAndDifferentEpochs' passed (0.001 seconds)
+Test Case 'FATXTests.testWriteLifecycleAllFormats' started at 2026-10-29 22:00:13.119
+Test Case 'FATXTests.testWriteLifecycleAllFormats' passed (1.143 seconds)
+Test Case 'FATXTests.testWrongSourceJournalRejectedAndBoundaries' started at 2026-10-29 22:00:14.262
+Test Case 'FATXTests.testWrongSourceJournalRejectedAndBoundaries' passed (0.017 seconds)
+Test Suite 'FATXTests' passed at 2026-10-29 22:00:14.279
+	 Executed 15 tests, with 0 failures (0 unexpected) in 2.139 (2.139) seconds
+Test Suite 'debug.xctest' passed at 2026-10-29 22:00:14.279
+	 Executed 30 tests, with 1 test skipped and 0 failures (0 unexpected) in 5.497 (5.497) seconds
+Test Suite 'All tests' passed at 2026-10-29 22:00:14.279
+	 Executed 30 tests, with 1 test skipped and 0 failures (0 unexpected) in 5.497 (5.497) seconds

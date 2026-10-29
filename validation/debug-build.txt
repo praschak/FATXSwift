@@ -1,0 +1,33 @@
+[0/1] Planning build
+Building for debugging...
+[0/8] Write swift-version--556612DA0FB14DC1.txt
+[1/8] Write sources
+[6/9] Emitting module FATXCore
+[7/10] Compiling FATXCore Partitions.swift
+[9/24] Emitting module fatx
+[10/25] Compiling fatx main.swift
+[12/27] Emitting module FATXService
+[13/28] Compiling FATXService DeviceSession.swift
+[15/27] Emitting module FATXCoreTests
+[16/29] Compiling FATXCoreTests FATXTests.swift
+[17/29] Compiling FATXCoreTests Fixture.swift
+[18/30] Write Objects.LinkFileList
+[19/30] Wrapping AST for fatx for debugging
+[20/30] Linking fatxbridge
+[21/30] Write Objects.LinkFileList
+[22/30] .session-build/x86_64-unknown-linux-gnu/debug/FATXSwiftPackageDiscoveredTests.derived/all-discovered-tests.swift
+[23/31] Linking fatx
+[24/31] Write sources
+[25/31] Wrapping AST for FATXCoreTests for debugging
+[27/32] Emitting module FATXSwiftPackageDiscoveredTests
+[28/35] Compiling FATXSwiftPackageDiscoveredTests FATXCoreTests.swift
+[29/35] Compiling FATXSwiftPackageDiscoveredTests FATXServiceTests.swift
+[30/35] Compiling FATXSwiftPackageDiscoveredTests all-discovered-tests.swift
+[31/36] .session-build/x86_64-unknown-linux-gnu/debug/FATXSwiftPackageTests.derived/runner.swift
+[32/37] Wrapping AST for FATXSwiftPackageDiscoveredTests for debugging
+[33/37] Write sources
+[35/38] Emitting module FATXSwiftPackageTests
+[36/39] Compiling FATXSwiftPackageTests runner.swift
+[37/39] Write Objects.LinkFileList
+[38/39] Linking FATXSwiftPackageTests.xctest
+Build complete! (6.28s)

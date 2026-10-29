@@ -1,0 +1,9 @@
+[0/1] Planning build
+Building for production...
+[0/6] Write swift-version--556612DA0FB14DC1.txt
+[0/6] Write sources
+[5/7] Compiling FATXCore Binary.swift
+[6/10] Compiling fatx main.swift
+[7/11] Compiling FATXService BrowserClient.swift
+[7/11] Write Objects.LinkFileList
+[9/11] Linking fatx

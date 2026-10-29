@@ -1,0 +1,1 @@
+PASS: 92 CLI checks across FATX/XTAF and FAT16/FAT32; independent extraction matched.

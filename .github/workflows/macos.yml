@@ -1,0 +1,9 @@
+name: macOS verification
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  verify:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: ./scripts/verify.sh

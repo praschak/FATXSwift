@@ -1,0 +1,11 @@
+.build/
+.swiftpm/
+*.journal
+*.img
+.DS_Store
+dist/
+*.fatx-pending
+*.undo
+*.undo.committed
+*.journal.committed
+__pycache__/
