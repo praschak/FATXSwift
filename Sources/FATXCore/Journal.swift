@@ -19,13 +19,14 @@ struct JournalHeader: Codable {
     let partitionOffset: UInt64
     let partitionLength: UInt64
     let superblock: Data
+    let wholeDiskFormat: Bool?
 }
 final class UndoJournal {
     let handle: FileHandle
     let path: String
     let header: JournalHeader
     var records: [(UInt64, UInt64, Int, UInt32)] = [] // source offset, journal payload offset, length
-    init(disk: Disk, path: String, offset: UInt64, length: UInt64) throws {
+    init(disk: Disk, path: String, offset: UInt64, length: UInt64, wholeDiskFormat: Bool = false) throws {
         self.path = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
         try Pending.validateClear(disk)
         try require(!FileManager.default.fileExists(atPath: self.path + ".committed"), "Journal completion marker already exists")
@@ -33,7 +34,7 @@ final class UndoJournal {
         guard fd >= 0 else { throw systemError("Create new journal") }
         handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
         header = JournalHeader(version: 2, source: disk.path, identity: disk.identity, length: disk.length, block: disk.blockSize,
-                               partitionOffset: offset, partitionLength: length, superblock: try disk.read(at: offset, count: 4096))
+                               partitionOffset: offset, partitionLength: length, superblock: try disk.read(at: offset, count: 4096), wholeDiskFormat: wholeDiskFormat ? true : nil)
         try handle.write(contentsOf: JSONEncoder().encode(header) + Data([10]))
         try handle.durableSync()
         try syncParent(self.path)
@@ -106,7 +107,11 @@ public enum Recovery {
         let header = try JSONDecoder().decode(JournalHeader.self, from: headerData)
         try require(header.version == 2 && header.source == disk.path && header.identity == disk.identity && header.length == disk.length && header.block == disk.blockSize, "Journal does not match this source")
         try require(header.partitionOffset <= disk.length && header.partitionLength <= disk.length - header.partitionOffset && header.partitionLength >= 4096, "Invalid journal partition bounds")
-        try require(header.superblock == disk.read(at: header.partitionOffset, count: 4096), "Partition header differs from journal")
+        if header.wholeDiskFormat == true {
+            try require(header.partitionOffset == 0 && header.partitionLength == disk.length && FileManager.default.fileExists(atPath: Pending.path(disk)), "Whole-disk format recovery requires its original pending-write state")
+        } else {
+            try require(header.superblock == disk.read(at: header.partitionOffset, count: 4096), "Partition header differs from journal")
+        }
         let journalLength = try handle.seekToEnd()
         try handle.seek(toOffset: UInt64(headerData.count + 1))
         var records: [(UInt64, UInt64, Int, UInt32)] = []

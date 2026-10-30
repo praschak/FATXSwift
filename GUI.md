@@ -1,4 +1,4 @@
-# FATX Browser 0.2.5
+# FATX Browser 1.0.0
 
 A native SwiftUI/AppKit file browser using the FATX core. The existing `fatx` CLI is still included.
 
@@ -22,6 +22,14 @@ The archive contains source. The script must run on your Mac to produce the app.
 4. If several volumes/layouts pass validation, choose one. Exact custom offset, length, and sector size remain available.
 
 Device numbers are refreshed from macOS; the app does not assume your memory unit will always be `disk4`. Do not initialize the original device disk if macOS offers to do so.
+
+## Drive security
+
+Volume → Drive Security selects an external USB disk and inspects the ATA security state. Choose a matching HDD key or direct password to set, unlock or remove a password. The disk is unmounted and its adapter temporarily captured for each operation. Inspect its model and serial before confirming. See [DRIVE-SECURITY.md](DRIVE-SECURITY.md) for requirements and important recovery details. This new integration requires macOS and physical-device verification.
+
+## Format device
+
+Use **Volume → Format Device…** to review and format an external disk. This destroys its existing layout. Read [FORMATTING.md](FORMATTING.md) before starting. New C/E volumes are empty and must be populated from your own backup. ATA locking is available separately under Volume → Drive Security; see [DRIVE-SECURITY.md](DRIVE-SECURITY.md).
 
 ## File browser
 
@@ -75,4 +83,4 @@ If an interrupted operation blocks a device, choose it, then use Recover Interru
 | `FATXCore` | Existing filesystem engine plus recursive transfers |
 | `fatx` | Existing command-line interface |
 
-No Finder mounting, formatting, ATA unlocking, filesystem repair, or FATXplorer XL support is added by the GUI. FATX's existing filename and file-size limits still apply.
+No Finder mounting, filesystem repair, or FATXplorer XL support is added by the GUI. FATX's existing filename and file-size limits still apply.

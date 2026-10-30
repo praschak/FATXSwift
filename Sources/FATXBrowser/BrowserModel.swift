@@ -11,6 +11,25 @@ final class BrowserModel: ObservableObject {
     @Published var showAccessSetup = false
     @Published var accessMessage = "Enable Full Disk Access so FATX Browser can open your FATX device. Administrator authorization is also required once each time the app starts."
     @Published var accessVerified = false
+    @Published var showSecurityProbe = false
+    @Published var securityTarget = ""
+    @Published var securityProbe: SecurityProbe?
+    @Published var securityCredential = "HDD key"
+    @Published var securityPassword = ""
+    @Published var savedKeyNames: [String] = []
+    @Published var selectedSavedKey = ""
+    @Published var saveHDDKey = false
+    @Published var newKeyName = ""
+    @Published var unlockFromScan = false
+    @Published var securityHex = false
+    @Published var securitySerialFirst = false
+    @Published var securityMaster = false
+    @Published var securityMaximum = true
+    @Published var showFormat = false
+    @Published var formatTarget = ""
+    @Published var formatProfile = FormatProfile.lba48FG
+    @Published var formatPlan: FormatPlan?
+    @Published var formatConfirmation = ""
     @Published var devices: [BrowserDevice] = []
     @Published var source = ""
     @Published var sourceName = ""
@@ -120,6 +139,133 @@ final class BrowserModel: ObservableObject {
             self.status = "\(self.devices.count) external device(s)"
         }
     }
+    func beginSecurityProbe() {
+        guard !busy, deviceSessionAuthorized, !devices.isEmpty else { return }
+        securityTarget = devices.contains(where: { $0.path == source }) ? source : (devices.first?.path ?? "")
+        securityProbe = nil; securityPassword = ""; selectedSavedKey = ""; saveHDDKey = false; unlockFromScan = false; refreshSavedKeys(); chooseVolume = false; showSecurityProbe = true
+    }
+    func refreshSavedKeys() {
+        do { savedKeyNames = try HDDKeyStore.names() }
+        catch { savedKeyNames = []; showError(error) }
+    }
+    func selectSavedKey(_ name: String) {
+        selectedSavedKey = name; securityPassword = ""
+        guard !name.isEmpty else { return }
+        do {
+            securityPassword = try HDDKeyStore.get(name).map { String(format: "%02x", $0) }.joined()
+            saveHDDKey = false
+        } catch { selectedSavedKey = ""; showError(error) }
+    }
+    func deleteSavedKey() {
+        guard !selectedSavedKey.isEmpty else { return }
+        let alert = NSAlert(); alert.messageText = "Delete saved HDD key?"
+        alert.informativeText = "Remove \(selectedSavedKey) from the macOS Keychain? This does not change the drive."
+        alert.addButton(withTitle: "Delete"); alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do { try HDDKeyStore.delete(selectedSavedKey); selectedSavedKey = ""; securityPassword = ""; refreshSavedKeys() }
+        catch { showError(error) }
+    }
+    func securityPasswordBytes() throws -> Data {
+        if !securityHex {
+            let bytes = Data(securityPassword.utf8)
+            guard !bytes.isEmpty && bytes.count <= 32 else { throw FATXError("Password must be 1 to 32 UTF-8 bytes") }
+            return bytes
+        }
+        let hex = securityPassword.filter { !$0.isWhitespace }
+        guard !hex.isEmpty, hex.count <= 64, hex.count % 2 == 0 else { throw FATXError("Hex password must contain 2 to 64 hexadecimal characters") }
+        var bytes = Data(), i = hex.startIndex
+        while i < hex.endIndex {
+            let next = hex.index(i, offsetBy: 2)
+            guard let byte = UInt8(hex[i..<next], radix: 16) else { throw FATXError("Invalid hexadecimal password") }
+            bytes.append(byte); i = next
+        }
+        return bytes
+    }
+    func performSecurity(_ action: ATASecurityAction) {
+        guard let probe = securityProbe, probe.disk == securityTarget, action != .inspect else { return }
+        do {
+            var op = SecurityOperation(action: action, disk: securityTarget, expected: probe.withoutSecret)
+            if securityCredential == "HDD key" {
+                let saved = securityHex; securityHex = true
+                defer { securityHex = saved }
+                let key = try securityPasswordBytes()
+                guard key.count == 16 else { throw FATXError("HDD key must be 32 hexadecimal characters") }
+                op.hddKey = key; op.master = false; op.maximum = true
+            } else {
+                op.rawPassword = try securityPasswordBytes(); op.master = securityMaster; op.maximum = securityMaximum
+            }
+            let saveKey = saveHDDKey && securityCredential == "HDD key" && (action == .set || action == .unlock)
+            let label = newKeyName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if saveKey && label.isEmpty { throw FATXError("Enter a name for the saved HDD key") }
+            if saveKey && savedKeyNames.contains(label) { throw FATXError("A saved key with that name already exists") }
+            op.serialFirst = securitySerialFirst
+            let alert = NSAlert(); alert.alertStyle = .warning
+            alert.messageText = action == .derive ? "Show derived password?" : (action == .set ? "Set drive password?" : (action == .unlock ? "Unlock drive?" : "Remove drive password?"))
+            alert.informativeText = "Target: \(probe.disk)\nModel: \(probe.model)\nSerial: \(probe.serial)\n\n" + (securitySerialFirst && securityCredential != "Password" ? "Legacy serial-first derivation selected. Verify that this is correct.\n\n" : "") + (action == .derive ? "The derived password is sensitive. Keep it private." : (action == .set ? "The drive will lock on its next power cycle. Keep the correct backup safe. Maximum security limits master-password recovery." : (action == .disable ? "Removing the password can prevent a retail system from booting this drive." : "An incorrect password counts against the drive's limited attempts. Unlock lasts until power is removed.")))
+            alert.addButton(withTitle: action == .derive ? "Show Password" : (action == .set ? "Set Password" : (action == .unlock ? "Unlock" : "Remove Password"))); alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            work("Changing drive security; keep the adapter connected…") {
+                var request = BrowserRequest(.securityOperation); request.source = op.disk; request.securityRequest = op
+                self.securityProbe = nil
+                let reply = try await self.client.send(request)
+                self.securityProbe = reply.securityProbe; self.securityPassword = ""; self.status = reply.message
+                if saveKey, let key = op.hddKey {
+                    do { try HDDKeyStore.save(label, key: key); self.refreshSavedKeys(); self.saveHDDKey = false; self.newKeyName = "" }
+                    catch { self.showError(FATXError("The drive operation succeeded, but the HDD key was not saved: \(error)")) }
+                }
+                if action == .unlock && self.unlockFromScan {
+                    self.unlockFromScan = false; self.showSecurityProbe = false
+                    self.status = "Drive unlocked. Select the device again to open it."
+                }
+            }
+        } catch { showError(error) }
+    }
+    func inspectDriveSecurity() {
+        let target = securityTarget
+        guard !target.isEmpty else { return }
+        securityProbe = nil
+        work("Unmounting disk and checking ATA security…") {
+            self.connected = false; self.items = []; self.selection = []; self.info = nil; self.candidates = []
+            self.source = target
+            self.sourceName = self.devices.first(where: { $0.path == target })?.name ?? URL(fileURLWithPath: target).lastPathComponent
+            var r = BrowserRequest(.securityProbe); r.source = target
+            self.securityProbe = try await self.client.send(r).securityProbe
+            self.status = "Security inspection complete; no password changed"
+        }
+    }
+    func beginFormat() {
+        guard !busy, deviceSessionAuthorized, !devices.isEmpty else { return }
+        formatTarget = devices.contains(where: { $0.path == source }) ? source : (devices.first?.path ?? "")
+        formatPlan = nil; formatConfirmation = ""; chooseVolume = false; showFormat = true
+    }
+    func reviewFormat() {
+        formatPlan = nil; formatConfirmation = ""
+        work("Reading format geometry…") {
+            var r = BrowserRequest(.formatPlan); r.source = self.formatTarget; r.formatProfile = self.formatProfile
+            self.formatPlan = try await self.client.send(r).formatPlan
+            self.status = "Review the layout and confirm the target device before erasing"
+        }
+    }
+    func performFormat() {
+        guard let plan = formatPlan, plan.source == formatTarget, plan.profile == formatProfile,
+              formatConfirmation == URL(fileURLWithPath: plan.source).lastPathComponent else { return }
+        let alert = NSAlert(); alert.alertStyle = .critical
+        alert.messageText = "Erase all data on \(formatTarget)?"
+        alert.informativeText = "This quick format replaces the disk layout and creates empty FATX volumes. Restore your C/E system files afterward. Formatting does not set the drive's ATA password."
+        alert.addButton(withTitle: "Erase & Format"); alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        work("Formatting device; keep it connected…") {
+            self.connected = false; self.items = []; self.selection = []; self.info = nil; self.candidates = []
+            self.source = plan.source
+            self.sourceName = self.devices.first(where: { $0.path == plan.source })?.name ?? URL(fileURLWithPath: plan.source).lastPathComponent
+            var r = BrowserRequest(.formatDisk); r.source = plan.source; r.approvedFormat = plan
+            r.formatConfirmation = plan.source; r.journal = try self.journal()
+            let reply = try await self.client.send(r)
+            self.candidates = reply.candidates; self.selectedCandidate = reply.candidates.first?.id ?? ""
+            self.useCustomGeometry = false; self.showFormat = false; self.formatPlan = nil
+            self.status = reply.message
+        }
+    }
     func openImage() {
         guard !busy else { return }
         let panel = NSOpenPanel(); panel.title = "Open a FATX disk or volume image"; panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
@@ -127,16 +273,34 @@ final class BrowserModel: ObservableObject {
     }
     func probe(_ path: String, name: String) {
         work(path.hasPrefix("/dev/") ? "Unmounting and scanning device…" : "Scanning image…") {
-            var r = BrowserRequest(.probe); r.source = path; r.unmount = path.hasPrefix("/dev/")
-            let reply = try await self.client.send(r)
-            self.source = path; self.sourceName = name; self.connected = false; self.items = []; self.selection = []; self.info = nil
-            self.useCustomGeometry = false
-            self.candidates = reply.candidates
-            self.selectedCandidate = reply.candidates.first(where: { $0.sectorSize == 4096 && $0.offset == 0 })?.id ?? reply.candidates.first?.id ?? ""
-            self.customLength = reply.candidates.first.map { String($0.length) } ?? ""
-            self.status = reply.message
-            if reply.candidates.count == 1 { try await self.attach(reply.candidates[0]) }
-            else { self.chooseVolume = true }
+            do {
+                var r = BrowserRequest(.probe); r.source = path; r.unmount = path.hasPrefix("/dev/")
+                let reply = try await self.client.send(r)
+                self.source = path; self.sourceName = name; self.connected = false; self.items = []; self.selection = []; self.info = nil
+                self.useCustomGeometry = false
+                self.candidates = reply.candidates
+                self.selectedCandidate = reply.candidates.first(where: { $0.sectorSize == 4096 && $0.offset == 0 })?.id ?? reply.candidates.first?.id ?? ""
+                self.customLength = reply.candidates.first.map { String($0.length) } ?? ""
+                self.status = reply.message
+                if reply.candidates.count == 1 { try await self.attach(reply.candidates[0]) }
+                else { self.chooseVolume = true }
+            } catch {
+                let scanError = error
+                guard path.hasPrefix("/dev/rdisk") else { throw scanError }
+                var securityRequest = BrowserRequest(.securityProbe); securityRequest.source = path
+                // A read failure alone is not proof of a lock. Inspect the same device.
+                let inspected: BrowserReply
+                do { inspected = try await self.client.send(securityRequest) }
+                catch { throw FATXError("\(scanError)\n\nUnable to check ATA security: \(error)") }
+                guard let info = inspected.securityProbe, info.locked else { throw scanError }
+                self.source = path; self.sourceName = name; self.connected = false
+                self.items = []; self.selection = []; self.info = nil; self.candidates = []
+                self.securityTarget = path; self.securityProbe = info
+                self.securityCredential = "HDD key"; self.securityPassword = ""
+                self.selectedSavedKey = ""; self.unlockFromScan = true
+                self.refreshSavedKeys(); self.showSecurityProbe = true
+                self.status = "This drive is locked. Select or enter the correct HDD key to unlock it."
+            }
         }
     }
     func attach(_ c: BrowserCandidate) async throws {

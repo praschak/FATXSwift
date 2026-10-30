@@ -10,6 +10,22 @@ public enum DeviceTools {
         guard p.terminationStatus == 0 else { throw FATXError("\(URL(fileURLWithPath: path).lastPathComponent) exited with status \(p.terminationStatus)") }
         return bytes
     }
+    public static func runSecurityProbe(_ executable: URL, request: SecurityOperation) throws -> Data {
+        let process = Process(), output = Pipe(), errors = Pipe(), input = Pipe()
+        process.executableURL = executable; process.arguments = []
+        process.standardInput = input; process.standardOutput = output; process.standardError = errors
+        try process.run()
+        try input.fileHandleForWriting.write(contentsOf: JSONEncoder().encode(request))
+        try input.fileHandleForWriting.close()
+        let bytes = output.fileHandleForReading.readDataToEndOfFile()
+        let errorBytes = errors.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            let message = String(decoding: errorBytes.suffix(8192), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            throw FATXError(message.isEmpty ? "Security probe failed" : message)
+        }
+        return bytes
+    }
     static func plist(_ args: [String]) throws -> [String: Any] {
         let bytes = try run("/usr/sbin/diskutil", args)
         guard let object = try PropertyListSerialization.propertyList(from: bytes, format: nil) as? [String: Any] else { throw FATXError("Invalid diskutil response") }
@@ -49,6 +65,28 @@ public enum DeviceTools {
         #else
         throw FATXError("Raw device access requires macOS")
         #endif
+    }
+    public static func validateFormatTarget(_ input: String, unmount: Bool, requireUnmounted: Bool = true) throws {
+        let source = URL(fileURLWithPath: input).resolvingSymlinksInPath().path
+        if !source.hasPrefix("/dev/") {
+            let attributes = try FileManager.default.attributesOfItem(atPath: source)
+            guard attributes[.type] as? FileAttributeType == .typeRegular else { throw FATXError("Only regular image files or external physical whole disks are supported") }
+            return
+        }
+        #if os(macOS)
+        guard source.range(of: "^/dev/rdisk[0-9]+$", options: .regularExpression) != nil else { throw FATXError("Choose an external whole raw disk") }
+        let info = try plist(["info", "-plist", source])
+        guard info["WholeDisk"] as? Bool == true, info["Internal"] as? Bool == false,
+              info["VirtualOrPhysical"] as? String == "Physical" else { throw FATXError("Formatting accepts only external physical whole disks") }
+        if unmount { _ = try run("/usr/sbin/diskutil", ["unmountDisk", source]) }
+        if requireUnmounted { try validate(source, writable: false) }
+        #else
+        throw FATXError("Raw-device formatting is available only on macOS")
+        #endif
+    }
+    public static func validateOpenedFormatTarget(_ disk: Disk, requireUnmounted: Bool = true) throws {
+        if disk.isDevice && disk.path.range(of: "^/dev/rdisk[0-9]+$", options: .regularExpression) == nil { throw FATXError("Only external whole raw disks can be formatted") }
+        try validateFormatTarget(disk.path, unmount: false, requireUnmounted: requireUnmounted)
     }
     public static func eject(_ source: String) throws {
         try validate(source, writable: false)

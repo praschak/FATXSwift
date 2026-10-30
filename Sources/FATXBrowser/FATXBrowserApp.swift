@@ -25,6 +25,9 @@ struct FATXBrowserApp: App {
                 Button("New Folder…") { model.newFolder() }.keyboardShortcut("n", modifiers: [.command, .shift]).disabled(!model.connected || model.busy)
             }
             CommandMenu("Volume") {
+                Button("Format Device…") { model.beginFormat() }.disabled(model.busy || !model.deviceSessionAuthorized || model.devices.isEmpty)
+                Button("Drive Security…") { model.beginSecurityProbe() }.disabled(model.busy || !model.deviceSessionAuthorized || model.devices.isEmpty)
+                Divider()
                 Button("Import Files & Folders…") { model.importPanel() }.keyboardShortcut("i").disabled(!model.connected || model.busy)
                 Button("Export Selected…") { model.exportPanel() }.keyboardShortcut("e").disabled(model.selection.isEmpty || model.busy)
                 Divider()

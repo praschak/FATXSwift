@@ -10,8 +10,46 @@ public enum BrowserService {
         var reply = BrowserReply()
         if r.command == .devices { reply.devices = try DeviceTools.devices(); return reply }
         if r.command == .eject { try DeviceTools.eject(r.source); reply.message = "Disk ejected"; return reply }
+        if r.command == .securityProbe || r.command == .securityOperation {
+            guard r.source.range(of: "^/dev/rdisk[0-9]+$", options: .regularExpression) != nil else { throw FATXError("Select an external raw disk") }
+            let op = r.securityRequest ?? SecurityOperation(action: .inspect, disk: r.source)
+            guard op.disk == r.source else { throw FATXError("Security request target differs from the selected disk") }
+            if r.command == .securityOperation {
+                guard op.action != .inspect, op.expected?.disk == r.source, op.expected?.identity.isEmpty == false,
+                      [op.rawPassword, op.hddKey].compactMap({ $0 }).count == 1 else { throw FATXError("Inspect the device and select one credential before changing security") }
+                if op.action == .derive { guard op.rawPassword == nil else { throw FATXError("Derivation requires an HDD key") } }
+                if let key = op.hddKey { guard key.count == 16 && !op.master else { throw FATXError("HDD key must contain exactly 16 bytes and uses the user password") } }
+                if let data = op.rawPassword { guard !data.isEmpty && data.count <= 32 else { throw FATXError("ATA password must contain 1 to 32 bytes") } }
+            } else { guard op.action == .inspect else { throw FATXError("Invalid inspection request") } }
+            try DeviceTools.validateFormatTarget(r.source, unmount: true)
+            #if os(macOS)
+            let binary = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent().appendingPathComponent("FATXSecurityProbe")
+            guard FileManager.default.isExecutableFile(atPath: binary.path) else { throw FATXError("The security probe is missing from the application bundle") }
+            let data = try DeviceTools.runSecurityProbe(binary, request: op)
+            reply.securityProbe = try JSONDecoder().decode(SecurityProbe.self, from: data)
+            reply.message = (op.action == .inspect || op.action == .derive) ? "Security information ready; no password was changed." : (op.action == .set ? (op.master ? "Master-password command accepted. The drive cannot report its value." : "Password enabled. The drive locks after a power cycle.") : (op.action == .unlock ? "Drive unlocked until power is removed." : "ATA password disabled."))
+            return reply
+            #else
+            throw FATXError("ATA security inspection requires macOS")
+            #endif
+        }
+        if r.command == .formatPlan || r.command == .formatDisk {
+            let writing = r.command == .formatDisk
+            if writing {
+                guard r.formatConfirmation == URL(fileURLWithPath: r.source).resolvingSymlinksInPath().path, r.approvedFormat != nil, r.journal != nil else { throw FATXError("Formatting needs a reviewed plan, exact target confirmation and new undo journal") }
+            }
+            try DeviceTools.validateFormatTarget(r.source, unmount: writing, requireUnmounted: writing)
+            let disk = try Disk(path: r.source, writable: writing)
+            try DeviceTools.validateOpenedFormatTarget(disk, requireUnmounted: writing)
+            if !writing { reply.formatPlan = try DiskFormatter.plan(disk: disk, profile: r.formatProfile ?? .lba48FG); return reply }
+            try DiskFormatter.format(disk: disk, approvedPlan: r.approvedFormat!, journal: r.journal!)
+            reply.candidates = r.approvedFormat!.volumes.map { BrowserCandidate(name: "fatx-" + $0.name.lowercased(), offset: $0.offset, length: $0.length, sectorSize: 512) }
+            reply.message = "Format complete. Import your system and dashboard files into C/E. Drive locking is a separate step."
+            return reply
+        }
         let mutation = [.importItems, .mkdir, .move, .delete, .recover].contains(r.command)
-        try DeviceTools.validate(r.source, writable: mutation, unmount: r.unmount && r.command == .probe)
+        if r.command == .recover { try DeviceTools.validateFormatTarget(r.source, unmount: false) }
+        else { try DeviceTools.validate(r.source, writable: mutation, unmount: r.unmount && r.command == .probe) }
         let disk = try Disk(path: r.source, writable: mutation)
         if r.command == .probe {
             let partitions = try Partitions.scan(disk)

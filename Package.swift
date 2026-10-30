@@ -9,14 +9,16 @@ var targets: [Target] = [
     .target(name: "CFATXPlatform", linkerSettings: [.linkedLibrary("proc", .when(platforms: [.macOS]))]),
     .target(name: "FATXCore", dependencies: ["CFATXPlatform"]),
     .target(name: "FATXService", dependencies: ["FATXCore", "CFATXPlatform"]),
-    .executableTarget(name: "fatx", dependencies: ["FATXCore"]),
+    .executableTarget(name: "fatx", dependencies: ["FATXCore", "FATXService"]),
     .executableTarget(name: "fatxbridge", dependencies: ["FATXService"]),
     .testTarget(name: "FATXCoreTests", dependencies: ["FATXCore"]),
     .testTarget(name: "FATXServiceTests", dependencies: ["FATXService", "FATXCore"])
 ]
 #if os(macOS)
 products.append(.executable(name: "FATXBrowser", targets: ["FATXBrowser"]))
-targets.append(.executableTarget(name: "FATXBrowser", dependencies: ["FATXService"]))
+products.append(.executable(name: "FATXSecurityProbe", targets: ["FATXSecurityProbe"]))
+targets.append(.executableTarget(name: "FATXSecurityProbe", dependencies: ["FATXCore", "FATXService"], linkerSettings: [.linkedFramework("IOKit"), .linkedFramework("IOUSBHost")]))
+targets.append(.executableTarget(name: "FATXBrowser", dependencies: ["FATXService"], linkerSettings: [.linkedFramework("Security")]))
 #endif
 let package = Package(
     name: "FATXSwift",

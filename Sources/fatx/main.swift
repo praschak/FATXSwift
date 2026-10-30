@@ -1,5 +1,6 @@
 import Foundation
 import FATXCore
+import FATXService
 #if canImport(Darwin)
 import Darwin
 #else
@@ -7,7 +8,7 @@ import Glibc
 #endif
 
 let help = """
-fatx 0.2.5 — FATX/XTAF read/write CLI (macOS 13+, Swift 5.9+)
+fatx 1.0.0 — FATX/XTAF read/write CLI (macOS 13+, Swift 5.9+)
 
   fatx devices
   fatx scan SOURCE
@@ -21,9 +22,11 @@ fatx 0.2.5 — FATX/XTAF read/write CLI (macOS 13+, Swift 5.9+)
   fatx mv SOURCE OLD_PATH NEW_PATH [VOLUME] --journal FILE
   fatx rm SOURCE FATX_PATH [VOLUME] --journal FILE
   fatx recover SOURCE --journal FILE
+  fatx format-plan SOURCE [--profile retail|lba48-f|lba48-fg]
+  fatx format SOURCE --plan PLAN.json --confirm SOURCE --journal FILE
 
 VOLUME (choose one):
-  --partition NAME          Known fixed partition; see scan output
+  --partition NAME          Fixed or table-defined partition; see scan output
   --offset BYTES --length BYTES   Exact custom partition bounds
   (no options)              SOURCE is an individual volume image, not a full disk
   --sector-size 512|4096    FATX logical sector size (default 512)
@@ -46,7 +49,7 @@ struct Arguments {
             if !literal && arg == "--replace" {
                 guard !replace else { throw FATXError("Duplicate --replace") }; replace = true
             } else if !literal && arg.hasPrefix("--") {
-                guard ["--offset", "--length", "--partition", "--sector-size", "--journal"].contains(arg), i + 1 < args.count, values[arg] == nil else { throw FATXError("Unknown, duplicate, or incomplete option: \(arg)") }
+                guard ["--offset", "--length", "--partition", "--sector-size", "--journal", "--profile", "--plan", "--confirm"].contains(arg), i + 1 < args.count, values[arg] == nil else { throw FATXError("Unknown, duplicate, or incomplete option: \(arg)") }
                 i += 1; values[arg] = args[i]
             } else { positionals.append(arg) }
             i += 1
@@ -68,7 +71,7 @@ func runProcess(_ executable: String, _ args: [String]) throws -> Data {
     guard process.terminationStatus == 0 else { throw FATXError("\(executable) exited with status \(process.terminationStatus)") }
     return bytes
 }
-func validateDevice(_ disk: Disk) throws {
+func validateDevice(_ disk: Disk, recovering: Bool = false) throws {
     guard disk.isDevice else { return }
     #if os(macOS)
     guard disk.path.range(of: "^/dev/rdisk[0-9]+$", options: .regularExpression) != nil else { throw FATXError("Use an unmounted whole raw disk, for example /dev/rdisk4") }
@@ -80,7 +83,7 @@ func validateDevice(_ disk: Disk) throws {
     func inspect(_ node: Any) throws {
         if let dictionary = node as? [String: Any] {
             if let point = dictionary["MountPoint"] as? String, !point.isEmpty { throw FATXError("Disk has a mounted volume: \(point). Run diskutil unmountDisk first.") }
-            if disk.writable, let content = dictionary["Content"] as? String,
+            if disk.writable && !recovering, let content = dictionary["Content"] as? String,
                content.contains("APFS") || content.contains("HFS") { throw FATXError("Refusing raw writes to a disk containing macOS filesystem partitions") }
             for value in dictionary.values { try inspect(value) }
         } else if let array = node as? [Any] { for value in array { try inspect(value) } }
@@ -109,8 +112,34 @@ func json<T: Encodable>(_ value: T) throws {
 func run() throws {
     let raw = Array(CommandLine.arguments.dropFirst())
     if raw.isEmpty || raw == ["--help"] || raw == ["help"] { print(help); return }
-    if raw == ["--version"] { print("fatx 0.2.5"); return }
+    if raw == ["--version"] { print("fatx 1.0.0"); return }
     let command = raw[0], args = try Arguments(Array(raw.dropFirst()))
+    if command == "format-plan" || command == "format" {
+        let writing = command == "format"
+        let allowed = writing ? ["--plan", "--confirm", "--journal"] : ["--profile"]
+        guard args.positionals.count == 1, !args.replace, args.values.keys.allSatisfy({ allowed.contains($0) }) else { throw FATXError("Invalid format arguments; run fatx --help") }
+        let source = args.positionals[0]
+        if writing {
+            guard let planPath = args.values["--plan"], let journal = args.values["--journal"], args.values["--confirm"] == URL(fileURLWithPath: source).resolvingSymlinksInPath().path else { throw FATXError("Formatting needs --plan PLAN.json, --confirm EXACT_SOURCE_PATH and --journal NEW_FILE") }
+            let handle = try FileHandle(forReadingFrom: URL(fileURLWithPath: planPath)); defer { try? handle.close() }
+            let data = try handle.read(upToCount: 65537) ?? Data()
+            guard data.count <= 65536 else { throw FATXError("Format plan exceeds 64 KiB") }
+            let plan = try JSONDecoder().decode(FormatPlan.self, from: data)
+            try DeviceTools.validateFormatTarget(source, unmount: false)
+            let disk = try Disk(path: source, writable: true)
+            try DeviceTools.validateOpenedFormatTarget(disk)
+            try DiskFormatter.format(disk: disk, approvedPlan: plan, journal: journal)
+            print("Format complete. Import your C/E system files before use. Drive locking is a separate step.")
+        } else {
+            guard let profile = FormatProfile(rawValue: args.values["--profile"] ?? "lba48-fg") else { throw FATXError("Unknown format profile") }
+            try DeviceTools.validateFormatTarget(source, unmount: false, requireUnmounted: false)
+            let disk = try Disk(path: source)
+            try DeviceTools.validateOpenedFormatTarget(disk, requireUnmounted: false)
+            try json(DiskFormatter.plan(disk: disk, profile: profile))
+        }
+        return
+    }
+    guard !args.values.keys.contains(where: { ["--profile", "--plan", "--confirm"].contains($0) }) else { throw FATXError("Format options apply only to format / format-plan") }
     let counts = ["devices": 0, "scan": 1, "info": 1, "ls": 2, "cat": 2, "get": 3, "check": 1, "put": 3, "mkdir": 2, "mv": 3, "rm": 2, "recover": 1]
     guard let count = counts[command] else { throw FATXError("Unknown command: \(command). Run fatx --help") }
     guard args.positionals.count == count || (command == "ls" && args.positionals.count == 1) else { throw FATXError("Wrong number of arguments. Run fatx --help") }
@@ -129,13 +158,13 @@ func run() throws {
     let journal = args.values["--journal"]
     if writing && journal == nil { throw FATXError("Writes require --journal /path/to/a-new-file (on your Mac)") }
     let disk = try Disk(path: args.positionals[0], writable: writing)
-    try validateDevice(disk)
+    try validateDevice(disk, recovering: command == "recover")
     if command == "recover" { try Recovery.restore(disk: disk, journal: journal!); print("Recovered source from undo journal."); return }
     if command == "scan" { try json(Partitions.scan(disk)); return }
     let offset: UInt64, length: UInt64?
     if let name = args.values["--partition"] {
         guard args.values["--offset"] == nil && args.values["--length"] == nil else { throw FATXError("Do not combine --partition with --offset/--length") }
-        let p = try Partitions.named(name, diskLength: disk.length); offset = p.offset; length = p.length
+        let p = try Partitions.named(name, disk: disk); offset = p.offset; length = p.length
     } else {
         if (args.values["--offset"] != nil) != (args.values["--length"] != nil) { throw FATXError("Custom volumes require BOTH --offset and --length") }
         offset = try args.number("--offset", default: 0)!; length = try args.number("--length")

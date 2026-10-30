@@ -122,6 +122,8 @@ struct BrowserView: View {
         .toolbarBackground(.visible, for: .windowToolbar)
         .onAppear { model.start() }
         .sheet(isPresented: $model.showAccessSetup) { AccessSetupView(model: model) }
+        .sheet(isPresented: $model.showSecurityProbe) { SecurityProbeView(model: model) }
+        .sheet(isPresented: $model.showFormat) { FormatView(model: model) }
         .sheet(isPresented: $model.chooseVolume) { VolumeChooser(model: model) }
         .sheet(isPresented: $model.showReport) {
             VStack(alignment: .leading, spacing: 14) {
